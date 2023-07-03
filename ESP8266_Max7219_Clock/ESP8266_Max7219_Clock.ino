@@ -1,4 +1,5 @@
 #include "myfont.h"
+#include "myweb.h"
 #include <WiFiManager.h>
 #include <MD_MAX72xx.h> 
 #include <NTPClient.h>
@@ -20,7 +21,7 @@ MD_MAX72XX mx = MD_MAX72XX(HARDWARE_TYPE, CS_PIN, MAX_DEVICES);
 
 //const char *ssid     = "DDWRT";//Wifi SSID
 //const char *password = "12347890";//Wifi Pass
-
+ESP8266WebServer server(80);
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP,"asia.pool.ntp.org",7*3600,60000);
 //int lastMin=0;
@@ -31,7 +32,12 @@ char _temp[8]="";
 char _humid[8]="";
 char _heatindex[8]="";
 char dayofweek[4]="";
+char thoigian[8]="";
+char ngaythang[8]="";
 MD_MAX72XX::fontType_t *pFont=myfont;//use custom font in myfont.h
+bool autobrightness=true;
+bool isNight;
+int brightness=0;
 
 //============================================================
 
@@ -178,9 +184,9 @@ int * getTempHumid(){
   float h=dht.readHumidity();
 
 if(isnan(t) || isnan(h)){
-    kq[0]=-99;
-    kq[1]=-99;
-    kq[2]=-99;
+    kq[0]=0;
+    kq[1]=0;
+    kq[2]=0;
     return kq;
   }else{
     kq[0]=(int)t;
@@ -224,7 +230,80 @@ void transformation(char *p,bool z1=true,bool z2=false)//function to scroll up m
  mx.control(MD_MAX72XX::UPDATE, MD_MAX72XX::ON);
 
 }
-//============================
+//======================================================
+
+void handleRoot() {
+ String s = MAIN_page; //Read HTML contents
+ String stat="<br><p>Display Brightness: ";
+ stat.concat(brightness);
+ stat+="<br>Auto Brightness: ";
+ if(autobrightness){
+  stat+="yes";
+ }else{
+  stat+="no";
+ }
+ stat+="<br>Is Night: ";
+ if(isNight){
+  stat+="yes";
+ }else{
+  stat+="no";
+ }
+ stat+="<br></p>";
+ //Serial.print(stat);
+ s.replace("@@@",stat);
+ server.send(200, "text/html", s); //Send web page
+}
+//===============================================================
+// This routine is executed when you press submit
+//===============================================================
+
+void handleBrightness(){
+ String temp=server.arg("brightness");
+ temp.trim();
+ if(autobrightness==false){
+ if(temp!=""){
+  brightness=abs(temp.toInt());
+  if(brightness>15){
+    brightness=15;
+  }
+    
+ }else{
+  brightness=1;
+ }
+ }
+  String s = "<a href='/'><font size='20'>Go Back</font></a>";
+  server.send(200, "text/html", s); //Send web page
+}
+
+void handleAutoBrightness(){
+ String temp=server.arg("autobrightness");
+ temp.trim();
+ if(temp!=""){
+    if(temp=="yes"){
+    autobrightness=true;   
+  }
+  if(temp=="no"){
+    autobrightness=false;  
+  }
+ }else{
+  autobrightness=true; 
+ }
+  String s = "<a href='/'><font size='20'>Go Back</font></a>";
+  server.send(200, "text/html", s); //Send web page
+}
+
+void handleReset(){
+  autobrightness=true;
+  
+  String s = "<a href='/'><font size='20'>Go Back</font></a>";
+  server.send(200, "text/html", s); //Send web page
+}
+
+void handleShowTime(){
+  server.send(200,"text/plane",thoigian);
+}
+
+//=====================================================
 
 void setup(){
 dht.begin();
@@ -251,6 +330,12 @@ mx.setFont(pFont);//set custom font
   sprintf(_humid,"%c:%02d%c",'H',_temphumid[1],'%');
 sprintf(_heatindex,"%c%c:%02d",'H','I',_temphumid[2]);  
 sprintf(dayofweek,"%s",dow[_date[3]]);
+  server.on("/", handleRoot);      //Which routine to handle at root location
+  server.on("/reset_page", handleReset);
+  server.on("/brightness_page", handleBrightness);
+  server.on("/autobrightness_page", handleAutoBrightness);
+  server.on("/showTime", handleShowTime);
+  server.begin();                  //Start server
   //Serial.println("Web server dang khoi dong. Vui long doi dia chi IP…");
   delay(1000);
   //Serial.println(WiFi.localIP());
@@ -263,8 +348,8 @@ sprintf(dayofweek,"%s",dow[_date[3]]);
 
 void loop(){
   timeClient.update();
-  char thoigian[8]="";
-  char ngaythang[8]="";
+  server.handleClient();
+  
   //lastMin=timeClient.getMinutes();
   int * t=getTime();
   //strcpy(thoigian,getTimeString().c_str());
@@ -275,16 +360,30 @@ void loop(){
       _date=getDate();
       sprintf(dayofweek,"%s",dow[_date[3]]);
     }
+    
   if(timeClient.getMinutes()%2 && timeClient.getSeconds()%3){
 	_temphumid=getTempHumid();
   sprintf(_temp,"%c:%02d%c",'T',_temphumid[0],char(26));//(char(26) mean degree C
   sprintf(_humid,"%c:%02d %c",'H',_temphumid[1],'%');
   sprintf(_heatindex,"%c%c:%02d",'H','I',_temphumid[2]);
     }
+    
   if((timeClient.getHours()>=0 && timeClient.getHours()<7)||(timeClient.getHours()>=22)){//auto set brightness to low in 22pm to 7am 
-    mx.control(MD_MAX72XX::INTENSITY, 1);
+    isNight=true;
   }else{
-    mx.control(MD_MAX72XX::INTENSITY, MAX_INTENSITY/2);
+    isNight=false;
+  }
+
+  if(autobrightness){
+    if(isNight){
+      brightness=0;
+      mx.control(MD_MAX72XX::INTENSITY,brightness);
+    }else{
+      brightness=MAX_INTENSITY/2;
+      mx.control(MD_MAX72XX::INTENSITY,brightness);  
+    }
+  }else{
+    mx.control(MD_MAX72XX::INTENSITY,brightness);
   }
   
     if(timeClient.getSeconds()<20){
