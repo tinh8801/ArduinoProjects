@@ -422,7 +422,7 @@ void loop(){
   }
     if(!isNight){
     if(timeClient.getMinutes()==0 && timeClient.getSeconds()<6){
-    player.playAsync(melody);
+    player.play(melody);
     }
     }
   
