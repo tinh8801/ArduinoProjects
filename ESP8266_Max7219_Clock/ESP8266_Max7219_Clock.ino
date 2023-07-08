@@ -1,5 +1,7 @@
 #include "myfont.h"
 #include "myweb.h"
+#include <melody_player.h>
+#include <melody_factory.h>
 #include <WiFiManager.h>
 #include <MD_MAX72xx.h> 
 #include <NTPClient.h>
@@ -15,10 +17,10 @@
 #define DATA_PIN 13 //Esp8266 MOSI pin
 #define CS_PIN 15 //Esp8266 CS pin
 #define CHAR_SPACING  1 // pixels between characters
-
+#define BUZZER 4
 DHT dht(DHTPIN,DHTTYPE);
 MD_MAX72XX mx = MD_MAX72XX(HARDWARE_TYPE, CS_PIN, MAX_DEVICES);
-
+MelodyPlayer player(BUZZER,LOW);
 //const char *ssid     = "DDWRT";//Wifi SSID
 //const char *password = "12347890";//Wifi Pass
 ESP8266WebServer server(80);
@@ -38,6 +40,11 @@ MD_MAX72XX::fontType_t *pFont=myfont;//use custom font in myfont.h
 bool autobrightness=true;
 bool isNight;
 int brightness=0;
+bool Mode24h=true;
+const int nNotes = 19;
+String notes[nNotes] = {"F4","A4","G4","C4","SILENCE","F4","G4","A4","F4","SILENCE","A4","F4","G4","C4","SILENCE","C4","G4","A4","F4"};
+const int timeUnit = 300;
+Melody melody = MelodyFactory.load("Big Ben Chimes",timeUnit, notes, nNotes);
 
 //============================================================
 
@@ -234,73 +241,96 @@ void transformation(char *p,bool z1=true,bool z2=false)//function to scroll up m
 
 void handleRoot() {
  String s = MAIN_page; //Read HTML contents
- String stat="<br><p>Display Brightness: ";
- stat.concat(brightness);
- stat+="<br>Auto Brightness: ";
- if(autobrightness){
-  stat+="yes";
- }else{
-  stat+="no";
- }
- stat+="<br>Is Night: ";
- if(isNight){
-  stat+="yes";
- }else{
-  stat+="no";
- }
- stat+="<br></p>";
- //Serial.print(stat);
- s.replace("@@@",stat);
  server.send(200, "text/html", s); //Send web page
 }
 //===============================================================
 // This routine is executed when you press submit
 //===============================================================
 
-void handleBrightness(){
- String temp=server.arg("brightness");
- temp.trim();
+void handleSliderIntensity(){
+ String temp=server.arg("intensityStatus");
  if(autobrightness==false){
- if(temp!=""){
   brightness=abs(temp.toInt());
-  if(brightness>15){
-    brightness=15;
-  }
-    
- }else{
-  brightness=1;
  }
- }
-  String s = "<a href='/'><font size='20'>Go Back</font></a>";
-  server.send(200, "text/html", s); //Send web page
 }
 
-void handleAutoBrightness(){
- String temp=server.arg("autobrightness");
- temp.trim();
- if(temp!=""){
-    if(temp=="yes"){
-    autobrightness=true;   
+void handleButtonAB(){
+ String temp=server.arg("abStatus");
+    if(temp=="ON"){
+    autobrightness=true;
+   
   }
-  if(temp=="no"){
+  if(temp=="OFF"){
     autobrightness=false;  
   }
- }else{
-  autobrightness=true; 
- }
-  String s = "<a href='/'><font size='20'>Go Back</font></a>";
-  server.send(200, "text/html", s); //Send web page
+}
+
+void handleButton12h(){
+  String temp=server.arg("displayStatus");
+    if(temp=="ON"){
+    Mode24h=false;   
+  }
+  if(temp=="OFF"){
+    Mode24h=true;  
+  }
 }
 
 void handleReset(){
   autobrightness=true;
+Mode24h=true;
   
   String s = "<a href='/'><font size='20'>Go Back</font></a>";
   server.send(200, "text/html", s); //Send web page
 }
 
-void handleShowTime(){
-  server.send(200,"text/plane",thoigian);
+void handleStatus(){
+String stat="<br>Intensity: ";
+ stat.concat(brightness);
+ stat+="<br>Auto Brightness: ";
+ if(autobrightness){
+  stat+="ON";
+ }else{
+  stat+="OFF";
+ }
+ stat+="<br>Night Mode: ";
+ if(isNight){
+  stat+="ON";
+ }else{
+  stat+="OFF";
+ }
+stat+="<br>24h Mode: ";
+if(Mode24h){
+stat+="ON";
+}else{
+stat+="OFF";
+}
+stat+="<br>";
+  server.send(200,"text/plane",stat);
+}
+
+void handleDisplayMode(){
+String stat="";
+if(Mode24h){
+stat="false";
+}else{
+stat="true";
+}
+server.send(200,"text/plane",stat);
+}
+
+void handleABMode(){
+String stat="";
+if(autobrightness){
+stat="true";
+}else{
+stat="false";
+}
+server.send(200,"text/plane",stat);
+}
+
+void handleUpdateSlider(){
+String stat=String(brightness);
+server.send(200,"text/plane",stat);
 }
 
 //=====================================================
@@ -317,7 +347,7 @@ mx.setFont(pFont);//set custom font
    // }
   WiFiManager wm;
 	if(!wm.autoConnect("Esp8266Clock")){
-	//bounce();
+	
 	}
   timeClient.begin();
   bounce();
@@ -327,17 +357,22 @@ mx.setFont(pFont);//set custom font
   _date=getDate();
   _temphumid=getTempHumid();
  sprintf(_temp,"%c:%02d%c",'T',_temphumid[0],char(26));
-  sprintf(_humid,"%c:%02d%c",'H',_temphumid[1],'%');
+ sprintf(_humid,"%c:%02d%c",'H',_temphumid[1],'%');
 sprintf(_heatindex,"%c%c:%02d",'H','I',_temphumid[2]);  
 sprintf(dayofweek,"%s",dow[_date[3]]);
   server.on("/", handleRoot);      //Which routine to handle at root location
   server.on("/reset_page", handleReset);
-  server.on("/brightness_page", handleBrightness);
-  server.on("/autobrightness_page", handleAutoBrightness);
-  server.on("/showTime", handleShowTime);
+  server.on("/toggleABMode", handleButtonAB);
+  server.on("/toggleDisplayMode",handleButton12h);
+  server.on("/changeIntensity",handleSliderIntensity);
+  server.on("/updateStatus", handleStatus);
+  server.on("/updateButton12h",handleDisplayMode);
+  server.on("/updateButtonAB",handleABMode);
+  server.on("/updateSlider",handleUpdateSlider);
   server.begin();                  //Start server
   //Serial.println("Web server dang khoi dong. Vui long doi dia chi IP…");
-  delay(1000);
+
+delay(1000);
   //Serial.println(WiFi.localIP());
   char IPAddr[(uint8_t)20];
     sprintf(IPAddr,"%03d:%03d:%03d:%03d",WiFi.localIP()[0],WiFi.localIP()[1],WiFi.localIP()[2],WiFi.localIP()[3]);
@@ -351,7 +386,7 @@ void loop(){
   server.handleClient();
   
   //lastMin=timeClient.getMinutes();
-  int * t=getTime();
+  int * t=getTime(Mode24h);
   //strcpy(thoigian,getTimeString().c_str());
   sprintf(thoigian,"%02d%c%02d",t[2],(timeClient.getSeconds()%2?':':' '),t[1]);
   sprintf(ngaythang,"%02d/%02d",_date[0],_date[1]);
@@ -385,6 +420,11 @@ void loop(){
   }else{
     mx.control(MD_MAX72XX::INTENSITY,brightness);
   }
+    if(!isNight){
+    if(timeClient.getMinutes()==0 && timeClient.getSeconds()<6){
+    player.playAsync(melody);
+    }
+    }
   
     if(timeClient.getSeconds()<20){
 	if(timeClient.getSeconds()==0){
