@@ -126,7 +126,7 @@ void handleUpdateStatus(){
  stat.concat(datescroll);
  stat+="<br>Intensity: ";
  stat.concat(brightness);
- stat+="<br>Auto Brightness: ";
+ stat+="<br>Auto Intensity: ";
  if(autobrightness){
   stat+="ON";
  }else{

@@ -17,7 +17,8 @@ text-transform: uppercase;
 <h3>Settings</h3>
 
 <div>
-<span>Scroll Speed: </span><input type="range" min="1" max="10" class="slider" id="scrollSlider">
+<span>Scroll Speed:</span>
+<span>Fast </span><input type="range" min="1" max="10" class="slider" id="scrollSlider"><span> Slow</span>
 </div>
 <br><br>
 <div>
