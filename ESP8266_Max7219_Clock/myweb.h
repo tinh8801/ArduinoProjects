@@ -140,7 +140,7 @@ body,textarea,input,select{background:0;border-radius:0;font:16px sans-serif;mar
 				</div>
 				<div class="flex-container">
 				  <div class="flex-child magenta">
-					<span class="component-label">Auto Brightness</span>
+					<span class="component-label">Auto Intensity</span>
 				  </div>
 				  <div class="flex-child green">
 					<div class="grid-child green">
