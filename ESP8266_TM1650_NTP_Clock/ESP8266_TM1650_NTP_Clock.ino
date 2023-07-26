@@ -81,19 +81,6 @@ int * getTempHumid(){
 }
 
 
-int nPos=0;
-void scrollTime(String thoigian, int spd){
-  display.setCursor(nPos);
-  display.println(thoigian);
-  nPos--;
-  if(nPos == 0-thoigian.length()-1)
-  {
-    display.clear();
-    nPos=NUM_DIGITS;
-  }
-  delay(spd);
-}
-
 int nPos1=0;
 void scrollDate(String ngaythang,int spd){
   display.setCursor(nPos1);
