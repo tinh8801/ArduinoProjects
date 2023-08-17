@@ -37,7 +37,8 @@ text-transform: uppercase;
 Status:<br><span id="allstatus"></span>
 </div>
 <br><br>
-<font size='18' color='red'>Reset</font>
+<p><font size='18' color='red'>Reset</font></p>
+<br><br>
 <form action="/reset_page">
 <input type="submit" value="Reset">
 </form>

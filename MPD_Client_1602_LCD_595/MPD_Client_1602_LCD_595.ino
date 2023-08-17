@@ -17,7 +17,9 @@
 #define D7 1
 #define BACKLIGHT 15
 LiquidCrystal_74HC595 lcd(DS, SHCP, STCP, RS, E, D4, D5, D6, D7, BACKLIGHT);
-
+#define btnNext 4
+#define btnPlay 5
+enum BUTTONS {NONE,NEXT,PLAY};
 #define lcdCols 16
 /* the number of rows that the display has */
 #define lcdRows 2
@@ -97,6 +99,7 @@ int getItem(String line, String item, char * value, int len) {
   line2 = line.substring(pos1);
   pos2=line2.indexOf(":");
   pos3=line2.indexOf(0x0a);
+ 
   //Serial.println("pos2=" + String(pos2));
   //Serial.println("pos3=" + String(pos3));
   String line3;
@@ -171,6 +174,16 @@ void lcdDisplay(char * lcdbuf, int rows) {
   lcd.print(line);
 }  
 
+BUTTONS checkButton(){
+  BUTTONS kq=NONE;
+  if(digitalRead(btnNext)==0){
+    kq=NEXT;
+  }
+  if(digitalRead(btnPlay)==0){
+    kq=PLAY; 
+  }
+    return kq;
+}
  
 void setup() {
   Serial.begin(115200);
@@ -207,8 +220,12 @@ void setup() {
   lcd.setCursor(0,0);
   lcd.print("IP:");
   lcd.setCursor(0,1);
+  lcd.backlight();
   lcd.print(WiFi.localIP());
   delay(1000);
+  lcd.noBacklight();
+  pinMode(btnNext,INPUT_PULLUP);
+  pinMode(btnPlay,INPUT_PULLUP);
   
 }
 
@@ -220,7 +237,7 @@ void loop() {
   char smsg[40];
   char lcdbuf[80] = {0};
   static char oldbuf[80] = {0};
-  
+  char lenh[10];
   if (!client.connected()) {
     Serial.println("server disconnected");
     lcd.clear();
@@ -228,14 +245,28 @@ void loop() {
     lcd.setCursor(0,0);
     lcd.print("Server");
     lcd.setCursor(0,1);
-    lcd.print("Disconnected");   
+    lcd.print("Disconnected");
+    delay(10*1000); 
     lcd.noBacklight();
     //digitalWrite(BACKLIGHT,LOW);
-    delay(10*1000);
+    
     
     ESP.restart();
   }
-  
+  if(checkButton()==NEXT){
+        sprintf(lenh,"next");
+        Serial.println("Button NEXT Pressed");
+       if (mpc_command(lenh) == 0) {
+          mpc_error(lenh);
+        }
+      }
+  if(checkButton()==PLAY){
+        sprintf(lenh,"pause");
+        Serial.println("Button PLAY/PAUSE Pressed");
+       if (mpc_command(lenh) == 0) {
+          mpc_error(lenh);
+        }
+  }
   long now = millis();
   if (now < lastMillis) lastMillis = now; // millis is overflow
   if (now - lastMillis > 1000) {
@@ -251,8 +282,9 @@ void loop() {
       line = client.readStringUntil('\0');
       //Serial.println("status=[" + line + "]");
       Serial.println("state=" + String(getItem(line, "state:", state, sizeof(state))) );
-
+    
       if (strcmp(state,"play") == 0) {
+        
         sprintf(smsg,"currentsong\n");
         client.print(smsg);
         //read back one line from server
@@ -262,21 +294,51 @@ void loop() {
 
         char artist[40];
         char title[40];
+        char artisttrim[40];
+        char titletrim[40];
         int artistLen;
         int titleLen;
         artistLen = getItem(line, "Artist:", artist, sizeof(artist));
         Serial.println("Artist=" + String(artistLen));
         titleLen = getItem(line, "Title:", title, sizeof(title));
         Serial.println("Title=" + String(titleLen));
+        int t=0;
+        int a=0;
+        for(int i=0;i<sizeof(title)-1;i++){
+          if(title[i]=='('){
+            t=i-1;
+          }
+        }
+        for(int i=0;i<sizeof(artist)-1;i++){
+          if(artist[i]=='('){
+            a=i-1;
+          }
+        }
+        
+        memset(titletrim, 0, sizeof(titletrim));
+        if(t==0){
+            strcpy(titletrim,title);
+        }else{
+          strncpy(titletrim,title,t);
+        }
+        
+        memset(artisttrim, 0, sizeof(artisttrim));
+        if(a==0){
+            strcpy(artisttrim,artist);
+        }else{
+          strncpy(artisttrim,artist,a);
+        }
         memset(lcdbuf, 0, sizeof(lcdbuf));
         if (artistLen > 0 && titleLen > 0) {
-          strcpy(lcdbuf, title);
-          strcat(lcdbuf, " - ");
-          strcat(lcdbuf, artist);
+          strcpy(lcdbuf, titletrim);
+          strcat(lcdbuf, "#");
+          strcat(lcdbuf, artisttrim);
         } else if (artistLen > 0 && titleLen == 0) {
-          strcpy(lcdbuf, artist);
+          strcpy(lcdbuf, artisttrim);
         } else if (artistLen == 0 && titleLen > 0) {
-          strcpy(lcdbuf, title);
+          strcpy(lcdbuf, titletrim);
+        }else{
+          strcpy(lcdbuf, "No Title Song");
         }
 
         Serial.println("lcdbuf=[" + String(lcdbuf) + "]");
@@ -291,6 +353,13 @@ void loop() {
         interval = 1;
 
       }  else {  // state = stop
+        if(checkButton()==PLAY){
+          sprintf(lenh,"play");
+          Serial.println("Button PLAY/PAUSE Pressed");
+        if (mpc_command(lenh) == 0) {
+          mpc_error(lenh);
+        }
+        }
         lcd.clear();
         lcd.noBacklight();
         //digitalWrite(BACKLIGHT,LOW);
