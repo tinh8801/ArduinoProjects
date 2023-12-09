@@ -27,6 +27,7 @@ WiFiClient client;
 
 long lastMillis = 0;
 int interval = 0;
+int retries=0;
 
 BUTTONS checkButton(){
   BUTTONS kq=NONE;
@@ -221,7 +222,8 @@ if(checkButton()==NEXT){
       http.begin(client,"http://192.168.2.8/api/v1/getState");
       int httpCode=http.GET();
       if(httpCode>0){//neu ket noi duoc voi volumio
-        payload=http.getString();//kiem tra trang thai phat nhac
+       retries=0;
+	 payload=http.getString();//kiem tra trang thai phat nhac
         // Serial.println(payload);
         int temp=getItem(payload, "status", state, sizeof(state));
         //Serial.println("state=" + String(state));
@@ -229,7 +231,10 @@ if(checkButton()==NEXT){
           lcd.clear();
           lcd.noBacklight();
           delay(10*1000);
-          ESP.restart(); 
+	retries+=1;
+	if(retries>20){
+          ESP.restart();
+		} 
         }    
        
     if (counter > interval) {
