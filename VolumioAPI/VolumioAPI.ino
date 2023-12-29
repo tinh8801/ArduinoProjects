@@ -1,6 +1,8 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
 #include <LiquidCrystal_74HC595.h>
+#include <ArduinoJson.h>
+
 #define DS 14
 #define SHCP 12
 #define STCP 13
@@ -10,42 +12,45 @@
 #define D5 3
 #define D6 2
 #define D7 1
-#define BACKLIGHT 15
+#define BACKLIGHT 15//Pin dieu khien backlight LCD
 LiquidCrystal_74HC595 lcd(DS, SHCP, STCP, RS, E, D4, D5, D6, D7, BACKLIGHT);
 
 #define btnNext 4
 #define btnPlay 5
 
-enum BUTTONS {NONE,NEXT,PLAY};
-#define lcdCols 16
-#define lcdRows 2
+enum BUTTONS {NONE, NEXT, PLAY};//Trang thai nut nhan
+#define lcdCols 16// So cot cua LCD
+#define lcdRows 2//So hang cua LCD
 
 const char *ssid     = "DDWRT";
 const char *password = "12347890";
-IPAddress host(192,168,2,8); // ip cua volumio
+IPAddress host(192,168,2,8); // Dia chi IP cua Volumio
 WiFiClient client;
 
 long lastMillis = 0;
 int interval = 0;
 int retries=0;
+StaticJsonDocument<1024> doc;
+enum ITEMS {PLAY_STATUS, TITLE, ARTIST, ALBUM, OTHER};
+ITEMS item_to_get=OTHER;
 
-BUTTONS checkButton(){
+BUTTONS checkButton(){//Kiem tra trang thai nut nhan
   BUTTONS kq=NONE;
   long baygio=millis();
   int count=0;
-  if(digitalRead(btnNext)==LOW){//kiem tra trang thai nut nhan trong 100ms
+  if(digitalRead(btnNext)==LOW){//Xu ly debounce nut nhan
     while(millis()-baygio<100){
       if(digitalRead(btnNext)==LOW){
         count++;
       }
     }
     if(count>50){
-      kq=NEXT;//neu trang thai LOW keo dai du lau -> nut da thuc su duoc nhan
+      kq=NEXT;
     }else{
       kq=NONE;
     }
   }
-  if(digitalRead(btnPlay)==LOW){
+  if(digitalRead(btnPlay)==LOW){//Xu ly debounce nut nhan
     while(millis()-baygio<100){
       if(digitalRead(btnPlay)==LOW){
         count++;
@@ -63,7 +68,38 @@ BUTTONS checkButton(){
 {"status":"play","position":5,"title":"Matsuri","artist":"Kitaro","album":"","albumart":"/albumart?cacheid=853&path=%2FUSB%2FMUSIC%2FLossless&metadata=false","uri":"mnt/USB/MUSIC/Lossless/Matsuri.ape","trackType":"ape","seek":87239,"duration":543,"samplerate":"44.1 KHz","bitdepth":"16 bit","channels":2,"random":false,"repeat":true,"repeatSingle":false,"consume":false,"volume":50,"disableVolumeControl":false,"mute":false,"stream":"ape","updatedb":false,"volatile":false,"service":"mpd"} 
  */
 
-int getItem(String line, String item, char * value, int len) {//phan tich chuoi tra ve tu getState
+ int getItemJson(String line, ITEMS item, char * value){
+    
+    DeserializationError error = deserializeJson(doc, line);
+    if (error) {
+    //Serial.print(F("deserializeJson() failed: "));
+    //Serial.println(error.f_str());
+    const char* error="Invalid JSON";
+    memcpy(value, error, strlen(error)+1);
+          }else{
+      const char* status=doc["status"];
+      const char* title=doc["title"];
+      const char* artist=doc["artist"];
+    switch (item){
+      case PLAY_STATUS:
+        memcpy(value, status, strlen(status)+1);
+        break;
+      case TITLE:
+      memcpy(value, title, strlen(title)+1);
+        break;
+      case ARTIST:
+      memcpy(value, artist, strlen(artist)+1);
+        break;
+      default:
+      const char* c="Volumio";
+       memcpy(value, c, strlen(c)+1);
+       break;
+    }
+          }
+    return strlen(value);
+ }
+
+/*int getItem(String line, String item, char * value, int len) {//phan tich chuoi tra ve tu getState
   int pos1,pos2,pos3;
   //Serial.println("item=[" + String(item) + "]");
   pos1=line.indexOf(item);//vi tri cua chuoi status, title, artist
@@ -102,8 +138,9 @@ void string2char(String line, char * cstr4, int len) {
   }
   //Serial.println("cstr4=[" + String(cstr4) + "]");
 }
+*/
 
-void fillBuffer(char * line, int len){//neu line<16 ky tu thi bo sung bang ky tu 0x20
+void fillBuffer(char * line, int len){//Neu line<16 ky tu thi bo sung bang ky tu 0x20
   int sz = strlen(line);
   for (int i=sz;i<len;i++) {
     line[i] = 0x20;
@@ -112,14 +149,14 @@ void fillBuffer(char * line, int len){//neu line<16 ky tu thi bo sung bang ky tu
 }
 void lcdDisplay(char * lcdbuf, int rows) {//xuat thong tin ra LCD
   char line[17];
-  memset(line, 0, sizeof(line));
+  memset(line, 0, sizeof(line));//Set toan bo gia tri mang line thanh 0
   strncpy(line, lcdbuf, 16);
   fillBuffer(line, 16);
   //Serial.println("line1=[" + String(line) + "]");
   lcd.setCursor(0, 0);
-  lcd.print(line);//xuat ra hang 1 cua lcd 16 ky tu dau cua lcdbuf
+  lcd.print(line);//In 16 ky tu dau cua lcdbuf ra dong 1 LCD
 
-  if (strlen(lcdbuf) > 16) {//neu lcdbuf>16 ky tu thi xuat ra dong thu 2
+  if (strlen(lcdbuf) > 16) {//Neu lcdbuf>16 ky tu thi in ra tiep phan con lai
     strncpy(line, &lcdbuf[16], 16);
   } else {
     strcpy(line, " ");
@@ -129,8 +166,8 @@ void lcdDisplay(char * lcdbuf, int rows) {//xuat thong tin ra LCD
   lcd.setCursor(0, 1);
   lcd.print(line);
 
-  if (rows == 2) return;//neu lcd loai 16x2 thi dung lai
-  if (strlen(lcdbuf) > 32) {//neu lcd 16x4, 20x4... thi tiep tuc
+  if (rows == 2) return;//Neu LCD 16x2 thi dung lai
+  if (strlen(lcdbuf) > 32) {//Neu LCD 16x4, 20x4... thi tiep tuc in ra
     strncpy(line, &lcdbuf[32], 16);
   } else {
     strcpy(line, " ");
@@ -155,7 +192,7 @@ void lcdDisplay(char * lcdbuf, int rows) {//xuat thong tin ra LCD
 
 void setup() {
   // put your setup code here, to run once:
-  //Serial.begin(115200);
+  Serial.begin(115200);
     // We start by connecting to a WiFi network
   //Serial.println();
   //Serial.println();
@@ -177,9 +214,9 @@ void setup() {
   lcd.begin(lcdCols, lcdRows);//khoi tao lcd
   lcd.backlight();
   lcd.setCursor(0,0);
-  lcd.print("Volumio Display");
+  lcd.print(F("Volumio Display"));
   lcd.setCursor(0,1);
-  lcd.print("WiFi Connected");
+  lcd.print(F("WiFi Connected"));
   delay(2000);
   lcd.noBacklight();
   pinMode(btnNext,INPUT_PULLUP);
@@ -190,8 +227,8 @@ void setup() {
 void loop() {
   // put your main code here, to run repeatedly:
   static int counter = 0;
-  char state[40];//trang thai volumio (play, pause, stop)
-  char lcdbuf[80] = {0};//noi dung se xuat ra lcd
+  char state[40];//Trang thai Volumio (play, pause, stop)
+  char lcdbuf[80] = {0};//noi dung se xuat ra LCD
   static char oldbuf[80] = {0};
   String payload="";
   
@@ -217,15 +254,20 @@ if(checkButton()==NEXT){
   if (now - lastMillis > 1000) {
     lastMillis = now;
     counter++;
+
+ 
      
     HTTPClient http;
       http.begin(client,"http://192.168.2.8/api/v1/getState");
       int httpCode=http.GET();
       if(httpCode>0){//neu ket noi duoc voi volumio
        retries=0;
-	 payload=http.getString();//kiem tra trang thai phat nhac
+	    payload=http.getString();//kiem tra trang thai phat nhac
+      
+      item_to_get=PLAY_STATUS;
         // Serial.println(payload);
-        int temp=getItem(payload, "status", state, sizeof(state));
+        //int temp=getItem(payload, "status", state, sizeof(state));
+        int temp=getItemJson(payload, item_to_get, state);
         //Serial.println("state=" + String(state));
         } else{//khong ket noi duoc thi xoa man hinh va reset esp8266
           lcd.clear();
@@ -246,12 +288,16 @@ if(checkButton()==NEXT){
         //char titletrim[40];
         int artistLen;
         int titleLen;
-        artistLen = getItem(payload, "artist", artist, sizeof(artist));
+        item_to_get=ARTIST;
+        //artistLen = getItem(payload, "artist", artist, sizeof(artist));
+        artistLen = getItemJson(payload, item_to_get, artist);
         //Serial.println("Artist=" + String(artist));
         if((sizeof(artist)/sizeof(artist[0]))<1){
           strcpy(artist,"-----------");
         }
-        titleLen = getItem(payload, "title", title, sizeof(title));
+        item_to_get=TITLE;
+        //titleLen = getItem(payload, "title", title, sizeof(title));
+        titleLen = getItemJson(payload, item_to_get, title);
         //Serial.println("Title=" + String(title));
        /* int t=0;
         int a=0;
