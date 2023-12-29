@@ -192,7 +192,7 @@ void lcdDisplay(char * lcdbuf, int rows) {//xuat thong tin ra LCD
 
 void setup() {
   // put your setup code here, to run once:
-  Serial.begin(115200);
+  //Serial.begin(115200);
     // We start by connecting to a WiFi network
   //Serial.println();
   //Serial.println();
@@ -234,7 +234,7 @@ void loop() {
   
 if(checkButton()==NEXT){
     HTTPClient http;
-      http.begin(client,"http://192.168.2.8/api/v1/commands?cmd=next");
+      http.begin(client,F("http://192.168.2.8/api/v1/commands?cmd=next"));
       int httpCode=http.GET();
       if(httpCode>0){
         //Serial.println("Button NEXT Pressed");
@@ -242,7 +242,7 @@ if(checkButton()==NEXT){
   }
   if(checkButton()==PLAY){
         HTTPClient http;
-      http.begin(client,"http://192.168.2.8/api/v1/commands?cmd=toggle");
+      http.begin(client,F("http://192.168.2.8/api/v1/commands?cmd=toggle"));
       int httpCode=http.GET();
       if(httpCode>0){
         //Serial.println("Button PLAY/PAUSE Pressed");
@@ -258,7 +258,7 @@ if(checkButton()==NEXT){
  
      
     HTTPClient http;
-      http.begin(client,"http://192.168.2.8/api/v1/getState");
+      http.begin(client,F("http://192.168.2.8/api/v1/getState"));
       int httpCode=http.GET();
       if(httpCode>0){//neu ket noi duoc voi volumio
        retries=0;
