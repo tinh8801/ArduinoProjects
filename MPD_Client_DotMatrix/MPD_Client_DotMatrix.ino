@@ -31,7 +31,7 @@ MD_MAX72XX mx = MD_MAX72XX(HARDWARE_TYPE, CS_PIN, MAX_DEVICES);
 const char *ssid     = "DDWRT";
 const char *password = "12347890";
 uint16_t port = 6600;
-IPAddress host(192,168,2,10); // ip or dns
+IPAddress host(192,168,2,8); // ip or dns
 
 
 // Use WiFiClient class to create TCP connections
@@ -45,7 +45,7 @@ int mpc_connect(IPAddress host, int port) {
   char rmsg[40];
 
   if (!client.connect(host, port)) {
-      Serial.println("connection failed");
+      Serial.println(F("Connection failed"));
       return 0;
   }
 
@@ -87,7 +87,7 @@ int mpc_command(char * buf) {
 }
 
 void mpc_error(char * buf) {
-  Serial.print("mpc command error:");
+  Serial.print(F("mpc command error:"));
   Serial.println(buf);
   while(1) {}
 }
@@ -154,7 +154,7 @@ void setup() {
   // We start by connecting to a WiFi network
   Serial.println();
   Serial.println();
-  Serial.print("Wait for WiFi...");
+  Serial.print(F("Wait for WiFi..."));
   WiFi.begin(ssid, password);
 
   int cnt = 0;
@@ -165,13 +165,13 @@ void setup() {
     if ((cnt % 60) == 0) Serial.println();
   }
 
-  Serial.println("");
-  Serial.println("WiFi connected");
-  Serial.print("IP address: ");
+  Serial.println(F("OK"));
+  Serial.println(F("WiFi connected"));
+  Serial.print(F("IP address: "));
   Serial.println(WiFi.localIP());
 
   while(1) {
-    Serial.print("connecting to ");
+    Serial.print(F("Connecting to "));
     Serial.println(host);
   //if (mpc_connect(host, port) == 0) mpc_error("connect");
     if (mpc_connect(host, port) == 1) break;
@@ -192,7 +192,7 @@ void loop() {
   static int offset = 0;
   
   if (!client.connected()) {
-    Serial.println("server disconencted");
+    Serial.println(F("Server disconnected"));
     delay(10*1000);
     ESP.restart();
   }
@@ -205,13 +205,13 @@ void loop() {
     if (counter > interval) {
       sprintf(smsg,"status\n");
       client.print(smsg);
-      Serial.println("status");
+      Serial.println(F("status"));
     
       //read back one line from server
       client.setTimeout(1000);
       line = client.readStringUntil('\0');
       //Serial.println("status=[" + line + "]");
-      Serial.println("state=" + String(getItem(line, "state:", state, sizeof(state))) );
+      Serial.println(F("state=" + String(getItem(line, "state:", state, sizeof(state)))));
 
       if (strcmp(state,"play") == 0) {
         sprintf(smsg,"currentsong\n");
