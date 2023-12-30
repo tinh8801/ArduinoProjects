@@ -52,7 +52,7 @@ void loop()
           client.println("*F</h3><h3>Do am: ");
           client.println(60);
           client.println("%</h3><h3>");
-          client.println("<h2>huy thang</h2>");
+          client.println("<h2>Created by Huy Thang</h2>");
           client.println("</body></html>");
 
           break;
