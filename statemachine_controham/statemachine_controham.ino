@@ -7,9 +7,9 @@ bool ledState;
 
 void setup() {
   // put your setup code here, to run once:
-  pinMode(ledPin,OUTPUT);
-digitalWrite(ledPin,HIGH);
-runningFunc=&resetFunc;
+  pinMode(ledPin, OUTPUT);
+  digitalWrite(ledPin, HIGH);
+  runningFunc=&resetFunc;
 
 }
 
@@ -31,10 +31,10 @@ void checkledstateFunc(){
   else runningFunc=&turnoffledFunc;
 }
 void turnonledFunc(){
-  digitalWrite(ledPin,LOW);
+  digitalWrite(ledPin, LOW);
   if(true) runningFunc=&resetFunc;
 }
 void turnoffledFunc(){
-  digitalWrite(ledPin,HIGH);
+  digitalWrite(ledPin, HIGH);
   if(true) runningFunc=&resetFunc;
 }
