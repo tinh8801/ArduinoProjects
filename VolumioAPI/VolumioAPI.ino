@@ -24,7 +24,7 @@ enum BUTTONS {NONE, NEXT, PLAY};//Trang thai nut nhan
 
 const char *ssid     = "DDWRT";
 const char *password = "12347890";
-IPAddress host(192,168,2,8); // IP cua Volumio
+//IPAddress host(192,168,2,8); // IP cua Volumio
 WiFiClient client;
 
 long lastMillis = 0;
@@ -92,7 +92,8 @@ int bracketpos(const char* src){//tim vi tri dau mo ngoac (
       const char* status=doc["status"];
       const char* title=doc["title"];
       const char* artist=doc["artist"];
-      
+      const char* samplerate = doc["samplerate"]; 
+      const char* bitdepth = doc["bitdepth"];
        
       switch (item){
         case PLAY_STATUS:
@@ -117,8 +118,10 @@ int bracketpos(const char* src){//tim vi tri dau mo ngoac (
           }else{
             strcpy(value, artist);    
               }     
-        }else{
-          strcpy(value, "");
+        }else{//neu khong co Artist tag thi in ra samplerate va bitdepth
+          strcpy(value, samplerate);
+          strcat(value,"-");
+          strcat(value, bitdepth);
         }
           
           break;
