@@ -41,12 +41,12 @@ String getDateString(){
 
 void updateMin(char *p,bool f){
 int kq=timeClient.getMinutes();
-sprintf(p,"%c%02d",(f?':':' '),kq);
+sprintf(p, "%c%02d", (f?':':' '), kq);
 }
 
 void updateHour(char *p){
 int kq=timeClient.getHours();
-sprintf(p,"%02d",kq);
+sprintf(p, "%02d", kq);
 }
 
 void updateDate(char *p){
@@ -114,7 +114,6 @@ void loop(){
     
    delay(100);
    
-  
     if(disp.getZoneStatus(1)){
       if((timeClient.getMinutes()==59)&&(timeClient.getSeconds()>58)){
         disp.setTextEffect(1,PA_SCROLL_DOWN, PA_WIPE);
