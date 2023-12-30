@@ -60,7 +60,7 @@ Adafruit_SH1106G display = Adafruit_SH1106G(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, 
 #define BLYNK_TEMPLATE_NAME "cong to dien thong minh"
 #define BLYNK_AUTH_TOKEN "U6zQmwKzfE9GSfHIV_Jrc1Vx8dVDUstw"
 
-#define Device_Name "CONG TO DIEN 1 Pha"
+#define Device_Name "CONG TO DIEN 1 PHA"
 
 // Comment this out to disable prints and save space
 #define BLYNK_PRINT Serial
