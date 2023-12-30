@@ -84,8 +84,8 @@ int bracketpos(const char* src){//tim vi tri dau mo ngoac (
     
     DeserializationError error = deserializeJson(doc, line);
     if (error) {
-    Serial.print(F("deserializeJson() failed: "));
-    Serial.println(error.f_str());
+    //Serial.print(F("deserializeJson() failed: "));
+    //Serial.println(error.f_str());
     //strcpy(value, "Invalid JSON");
                }else{
       memset(value,0,sizeof(value));  
@@ -224,7 +224,7 @@ void lcdDisplay(char * lcdbuf, int rows) {//xuat thong tin ra LCD
 
 void setup() {
   // put your setup code here, to run once:
-  Serial.begin(115200);
+  //Serial.begin(115200);
     // We start by connecting to a WiFi network
   //Serial.println();
   //Serial.println();
