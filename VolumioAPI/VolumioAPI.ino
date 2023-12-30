@@ -2,21 +2,21 @@
 #include <ESP8266HTTPClient.h>
 #include <LiquidCrystal_74HC595.h>
 #include <ArduinoJson.h>
-
-#define DS 14
-#define SHCP 12
-#define STCP 13
+              //  74HC595             NodeMCU
+#define DS 14 //   14                 D5 (GPIO14)
+#define SHCP 12//  11                 D6 (GPIO12)
+#define STCP 13//  12                 D7 (GPIO13)
 #define RS 7
 #define E 6
 #define D4 4
 #define D5 3
 #define D6 2
 #define D7 1
-#define BACKLIGHT 15//Pin dieu khien backlight LCD
-LiquidCrystal_74HC595 lcd(DS, SHCP, STCP, RS, E, D4, D5, D6, D7, BACKLIGHT);
+#define BACKLIGHT 15//D8 (GPIO15)(Backlight LCD)
+LiquidCrystal_74HC595 lcd(DS, SHCP, STCP, RS, E, D4, D5, D6, D7, BACKLIGHT);//Khai bao LCD
 
-#define btnNext 4
-#define btnPlay 5
+#define btnNext 4//D2 (GPIO4)
+#define btnPlay 5//D1 (GPIO5)
 
 enum BUTTONS {NONE, NEXT, PLAY};//Trang thai nut nhan
 #define lcdCols 16// So cot cua LCD
@@ -24,13 +24,14 @@ enum BUTTONS {NONE, NEXT, PLAY};//Trang thai nut nhan
 
 const char *ssid     = "DDWRT";
 const char *password = "12347890";
-IPAddress host(192,168,2,8); // Dia chi IP cua Volumio
+IPAddress host(192,168,2,8); // IP cua Volumio
 WiFiClient client;
 
 long lastMillis = 0;
 int interval = 0;
 int retries=0;
 StaticJsonDocument<1024> doc;
+
 enum ITEMS {PLAY_STATUS, TITLE, ARTIST, ALBUM, OTHER};
 ITEMS item_to_get=OTHER;
 
@@ -68,37 +69,64 @@ BUTTONS checkButton(){//Kiem tra trang thai nut nhan
 {"status":"play","position":5,"title":"Matsuri","artist":"Kitaro","album":"","albumart":"/albumart?cacheid=853&path=%2FUSB%2FMUSIC%2FLossless&metadata=false","uri":"mnt/USB/MUSIC/Lossless/Matsuri.ape","trackType":"ape","seek":87239,"duration":543,"samplerate":"44.1 KHz","bitdepth":"16 bit","channels":2,"random":false,"repeat":true,"repeatSingle":false,"consume":false,"volume":50,"disableVolumeControl":false,"mute":false,"stream":"ape","updatedb":false,"volatile":false,"service":"mpd"} 
  */
 
- int getItemJson(String line, ITEMS item, char * value){
+int bracketpos(const char* src){//tim vi tri dau mo ngoac (
+  int pos=0;
+  for(int i=0; i<strlen(src)-1;i++){
+            if(src[i]=='('){
+              pos=i;
+              break;
+            }
+        }
+  return pos;
+}
+
+ int getItemJson(String line, ITEMS item, char* value){
     
     DeserializationError error = deserializeJson(doc, line);
     if (error) {
-    //Serial.print(F("deserializeJson() failed: "));
-    //Serial.println(error.f_str());
-    const char* error="Invalid JSON";
-    memcpy(value, error, strlen(error)+1);
-          }else{
+    Serial.print(F("deserializeJson() failed: "));
+    Serial.println(error.f_str());
+    //strcpy(value, "Invalid JSON");
+               }else{
+      memset(value,0,sizeof(value));  
       const char* status=doc["status"];
       const char* title=doc["title"];
       const char* artist=doc["artist"];
-    switch (item){
-      case PLAY_STATUS:
-        memcpy(value, status, strlen(status)+1);
-        break;
-      case TITLE:
-      memcpy(value, title, strlen(title)+1);
-        break;
-      case ARTIST:
-      memcpy(value, artist, strlen(artist)+1);
-        break;
-      default:
-      const char* c="Volumio";
-       memcpy(value, c, strlen(c)+1);
-       break;
+      
+       
+      switch (item){
+        case PLAY_STATUS:
+          strcpy(value, status);
+          break;
+        case TITLE:
+        if(strlen(title)>0){
+          if(bracketpos(title)>0){//neu trong chuoi co dau ngoac
+            strncpy(value, title, bracketpos(title)-1); //copy phan truoc dau ngoac
+          }else{
+            strcpy(value, title);    
+                }     
+        }else{
+          strcpy(value, "");
+        }
+          
+          break;
+        case ARTIST:
+        if(strlen(artist)>0){
+           if(bracketpos(artist)>0){
+            strncpy(value, artist, bracketpos(artist)-1); 
+          }else{
+            strcpy(value, artist);    
+              }     
+        }else{
+          strcpy(value, "");
+        }
+          
+          break;
     }
-          }
+               }       
     return strlen(value);
  }
-
+ 
 /*int getItem(String line, String item, char * value, int len) {//phan tich chuoi tra ve tu getState
   int pos1,pos2,pos3;
   //Serial.println("item=[" + String(item) + "]");
@@ -140,13 +168,14 @@ void string2char(String line, char * cstr4, int len) {
 }
 */
 
-void fillBuffer(char * line, int len){//Neu line<16 ky tu thi bo sung bang ky tu 0x20
+void fillBuffer(char * line, int len){//Neu line<16 ky tu thi bo sung bang ky tu 0x20 (Space)
   int sz = strlen(line);
   for (int i=sz;i<len;i++) {
     line[i] = 0x20;
-    line[i+1] = 0;
+    line[i+1]=0;
   }
 }
+
 void lcdDisplay(char * lcdbuf, int rows) {//xuat thong tin ra LCD
   char line[17];
   memset(line, 0, sizeof(line));//Set toan bo gia tri mang line thanh 0
@@ -159,7 +188,7 @@ void lcdDisplay(char * lcdbuf, int rows) {//xuat thong tin ra LCD
   if (strlen(lcdbuf) > 16) {//Neu lcdbuf>16 ky tu thi in ra tiep phan con lai
     strncpy(line, &lcdbuf[16], 16);
   } else {
-    strcpy(line, " ");
+    strcpy(line," ");
   }
   fillBuffer(line, 16);
   //Serial.println("line2=[" + String(line) + "]");
@@ -192,7 +221,7 @@ void lcdDisplay(char * lcdbuf, int rows) {//xuat thong tin ra LCD
 
 void setup() {
   // put your setup code here, to run once:
-  //Serial.begin(115200);
+  Serial.begin(115200);
     // We start by connecting to a WiFi network
   //Serial.println();
   //Serial.println();
@@ -219,6 +248,7 @@ void setup() {
   lcd.print(F("WiFi Connected"));
   delay(2000);
   lcd.noBacklight();
+  lcd.clear();
   pinMode(btnNext,INPUT_PULLUP);
   pinMode(btnPlay,INPUT_PULLUP);
   
@@ -233,15 +263,16 @@ void loop() {
   String payload="";
   
 if(checkButton()==NEXT){
-    HTTPClient http;
+      HTTPClient http;
       http.begin(client,F("http://192.168.2.8/api/v1/commands?cmd=next"));
       int httpCode=http.GET();
       if(httpCode>0){
         //Serial.println("Button NEXT Pressed");
         }          
   }
-  if(checkButton()==PLAY){
-        HTTPClient http;
+  
+ if(checkButton()==PLAY){
+      HTTPClient http;
       http.begin(client,F("http://192.168.2.8/api/v1/commands?cmd=toggle"));
       int httpCode=http.GET();
       if(httpCode>0){
@@ -254,18 +285,15 @@ if(checkButton()==NEXT){
   if (now - lastMillis > 1000) {
     lastMillis = now;
     counter++;
-
- 
-     
+   
     HTTPClient http;
-      http.begin(client,F("http://192.168.2.8/api/v1/getState"));
-      int httpCode=http.GET();
-      if(httpCode>0){//neu ket noi duoc voi volumio
-       retries=0;
-	    payload=http.getString();//kiem tra trang thai phat nhac
-      
-      item_to_get=PLAY_STATUS;
-        // Serial.println(payload);
+    http.begin(client,F("http://192.168.2.8/api/v1/getState"));
+    int httpCode=http.GET();
+    if(httpCode>0){//neu ket noi duoc voi volumio
+        retries=0;
+	      payload=http.getString();//kiem tra trang thai phat nhac
+        item_to_get=PLAY_STATUS;
+        //Serial.println("JSON: "+payload);
         //int temp=getItem(payload, "status", state, sizeof(state));
         int temp=getItemJson(payload, item_to_get, state);
         //Serial.println("state=" + String(state));
@@ -276,28 +304,29 @@ if(checkButton()==NEXT){
 	retries+=1;
 	if(retries>20){
           ESP.restart();
-		} 
+		          } 
         }    
        
     if (counter > interval) {
-    
- if(strcmp(state,"play") == 0) {
-        char artist[40];
-        char title[40];
+        if(strcmp(state,"play") == 0) {
+          char artist[40];
+          char title[40];
         //char artisttrim[40];
         //char titletrim[40];
-        int artistLen;
-        int titleLen;
-        item_to_get=ARTIST;
+          int artistLen;
+          int titleLen;
+          item_to_get=ARTIST;
         //artistLen = getItem(payload, "artist", artist, sizeof(artist));
-        artistLen = getItemJson(payload, item_to_get, artist);
+          memset(artist,0,sizeof(artist));
+          artistLen = getItemJson(payload, item_to_get, artist);
         //Serial.println("Artist=" + String(artist));
-        if((sizeof(artist)/sizeof(artist[0]))<1){
-          strcpy(artist,"-----------");
-        }
-        item_to_get=TITLE;
+          if((sizeof(artist)/sizeof(artist[0]))<1){
+              strcpy(artist,"-----------");
+            }
+          item_to_get=TITLE;
         //titleLen = getItem(payload, "title", title, sizeof(title));
-        titleLen = getItemJson(payload, item_to_get, title);
+          memset(title,0,sizeof(title));
+          titleLen = getItemJson(payload, item_to_get, title);
         //Serial.println("Title=" + String(title));
        /* int t=0;
         int a=0;
@@ -306,8 +335,8 @@ if(checkButton()==NEXT){
             t=i-1;
             break;
           }
-        }
         for(int i=0;i<sizeof(artist)-1;i++){
+        }
           if(artist[i]=='('){
             a=i-1;
             break;
@@ -334,9 +363,9 @@ if(checkButton()==NEXT){
           strcat(lcdbuf, artist);
         } else if (artistLen == 0 && titleLen > 0) {
           strcpy(lcdbuf, title);
-          strcat(lcdbuf,"#No Artist");
+          strcat(lcdbuf,"");
         }else{
-          strcpy(lcdbuf, "No Info Song");
+          strcpy(lcdbuf, "No ID3 Tag");
         }
 
         //Serial.println("lcdbuf=[" + String(lcdbuf) + "]");
