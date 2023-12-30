@@ -13,8 +13,8 @@ void runningFunc();
 
 void setup() {
   // put your setup code here, to run once:
-pinMode(ledPin,OUTPUT);
-digitalWrite(ledPin,HIGH);
+pinMode(ledPin, OUTPUT);
+digitalWrite(ledPin, HIGH);
 state=RESET;
 }
 
@@ -26,28 +26,28 @@ void runningFunc(){
 
   switch (state){
     case RESET:
-    batdau=millis();
-    if(true) state=CHECKTIME;
-    break;
+      batdau=millis();
+      if(true) state=CHECKTIME;
+      break;
     case CHECKTIME:
-    hientai=millis();
-    if((hientai-batdau)>BLINK){
-      state=CHECKLEDSTATE;
-    }
-    break;
+      hientai=millis();
+      if((hientai-batdau)>BLINK){
+        state=CHECKLEDSTATE;
+        }
+      break;
     case CHECKLEDSTATE:
-    ledState=digitalRead(ledPin);
-    if(ledState==HIGH) state=LEDON;
-    else state=LEDOFF;
-    break;
+      ledState=digitalRead(ledPin);
+      if(ledState==HIGH) state=LEDON;
+      else state=LEDOFF;
+      break;
     case LEDON:
-    digitalWrite(ledPin,LOW);
-    if(true) state=RESET;
-    break;
+      digitalWrite(ledPin,LOW);
+      if(true) state=RESET;
+      break;
     case LEDOFF:
-    digitalWrite(ledPin,HIGH);
-    if(true) state=RESET;
-    break;
+      digitalWrite(ledPin,HIGH);
+      if(true) state=RESET;
+      break;
     
   }
 }
