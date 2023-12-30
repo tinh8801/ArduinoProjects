@@ -14,8 +14,8 @@ TM1650 module(DATA,CLK,4,true,3,TM1650_DISPMODE_4x8);   // DIO=8, CLK=9, STB=7
 TM16xxDisplay display(&module, NUM_DIGITS);    // TM16xx object, 8 digits
 
 
-const char *ssid     = "TP-LINK_9B3852";
-const char *password = "91890429";
+const char *ssid     = "DDWRT";
+const char *password = "12347890";
 WiFiServer server(80);
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP,"asia.pool.ntp.org",7*3600,60000);
