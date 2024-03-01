@@ -2,7 +2,7 @@
 #include <ESP8266HTTPClient.h>
 #include <LiquidCrystal_74HC595.h>
 #include <ArduinoJson.h>
-              //  74HC595             NodeMCU
+//Ket noi LCD:    74HC595             NodeMCU
 #define DS 14 //   14                 D5 (GPIO14)
 #define SHCP 12//  11                 D6 (GPIO12)
 #define STCP 13//  12                 D7 (GPIO13)
@@ -12,19 +12,19 @@
 #define D5 3
 #define D6 2
 #define D7 1
-#define BACKLIGHT 15//D8 (GPIO15)(Backlight LCD)
+#define BACKLIGHT 15//D8 (GPIO15) LCD Backlight
 LiquidCrystal_74HC595 lcd(DS, SHCP, STCP, RS, E, D4, D5, D6, D7, BACKLIGHT);//Khai bao LCD
 
 #define btnNext 4//D2 (GPIO4)
 #define btnPlay 5//D1 (GPIO5)
 
 enum BUTTONS {NONE, NEXT, PLAY};//Trang thai nut nhan
-#define lcdCols 16// So cot cua LCD
-#define lcdRows 2//So hang cua LCD
+#define lcdCols 16// So cot LCD
+#define lcdRows 2//So hang LCD
+#define CHECK_INTERVAL 1000
 
 const char *ssid     = "DDWRT";
 const char *password = "12347890";
-//IPAddress host(192,168,2,8); // IP cua Volumio
 WiFiClient client;
 
 long lastMillis = 0;
@@ -32,15 +32,15 @@ int interval = 0;
 int retries=0;
 StaticJsonDocument<1024> doc;
 
-enum ITEMS {PLAY_STATUS, TITLE, ARTIST, ALBUM, OTHER};
+enum ITEMS {PLAY_STATUS, TITLE, ARTIST, INFO, OTHER};
 ITEMS item_to_get=OTHER;
 
 BUTTONS checkButton(){//Kiem tra trang thai nut nhan
   BUTTONS kq=NONE;
-  long baygio=millis();
+  long current_time=millis();
   int count=0;
   if(digitalRead(btnNext)==LOW){//Xu ly debounce nut nhan
-    while(millis()-baygio<100){
+    while(millis()-current_time<100){
       if(digitalRead(btnNext)==LOW){
         count++;
       }
@@ -52,7 +52,7 @@ BUTTONS checkButton(){//Kiem tra trang thai nut nhan
     }
   }
   if(digitalRead(btnPlay)==LOW){//Xu ly debounce nut nhan
-    while(millis()-baygio<100){
+    while(millis()-current_time<100){
       if(digitalRead(btnPlay)==LOW){
         count++;
       }
@@ -65,13 +65,11 @@ BUTTONS checkButton(){//Kiem tra trang thai nut nhan
   }
     return kq;
 }
-/*
-{"status":"play","position":5,"title":"Matsuri","artist":"Kitaro","album":"","albumart":"/albumart?cacheid=853&path=%2FUSB%2FMUSIC%2FLossless&metadata=false","uri":"mnt/USB/MUSIC/Lossless/Matsuri.ape","trackType":"ape","seek":87239,"duration":543,"samplerate":"44.1 KHz","bitdepth":"16 bit","channels":2,"random":false,"repeat":true,"repeatSingle":false,"consume":false,"volume":50,"disableVolumeControl":false,"mute":false,"stream":"ape","updatedb":false,"volatile":false,"service":"mpd"} 
- */
 
-int bracketpos(const char* src){//tim vi tri dau mo ngoac (
+
+int bracketPos(const char* src){//tim vi tri dau mo ngoac (
   int pos=0;
-  for(int i=0; i<strlen(src)-1;i++){
+  for(int i=0; i<strlen(src)-1; i++){
             if(src[i]=='('){
               pos=i;
               break;
@@ -80,6 +78,25 @@ int bracketpos(const char* src){//tim vi tri dau mo ngoac (
   return pos;
 }
 
+/*
+JSON tu Volumio:
+{"status":"play","position":5,"title":"Matsuri","artist":"Kitaro","album":"",
+"albumart":"/albumart?cacheid=853&path=%2FUSB%2FMUSIC%2FLossless&metadata=false",
+"uri":"mnt/USB/MUSIC/Lossless/Matsuri.ape","trackType":"ape",
+"seek":87239,"duration":543,"samplerate":"44.1 KHz","bitdepth":"16 bit","channels":2,"random":false,"repeat":true,
+"repeatSingle":false,"consume":false,"volume":50,"disableVolumeControl":false,"mute":false,"stream":"ape",
+"updatedb":false,"volatile":false,"service":"mpd"}
+*/
+char * seekConvert(long seek){
+  static char kq[5];
+  int seconds=seek/1000;
+  int minutes=seconds/60;
+  seconds=seconds%60;
+  sprintf(kq,"%02d:%02d",minutes,seconds);
+  return kq;
+}
+
+
  int getItemJson(String line, ITEMS item, char* value){
     
     DeserializationError error = deserializeJson(doc, line);
@@ -87,46 +104,52 @@ int bracketpos(const char* src){//tim vi tri dau mo ngoac (
     //Serial.print(F("deserializeJson() failed: "));
     //Serial.println(error.f_str());
     //strcpy(value, "Invalid JSON");
-               }else{
-      memset(value,0,sizeof(value));  
+    }else{
+      memset(value, 0, sizeof(value));  
       const char* status=doc["status"];
       const char* title=doc["title"];
       const char* artist=doc["artist"];
-      const char* samplerate = doc["samplerate"]; 
-      const char* bitdepth = doc["bitdepth"];
+      const char* trackType = doc["trackType"]; // "ape"
+      long seek = doc["seek"]; // 87239
+      //int duration = doc["duration"]; // 543
+      const char* samplerate = doc["samplerate"]; // "44.1 KHz"
        
       switch (item){
         case PLAY_STATUS:
           strcpy(value, status);
           break;
+
         case TITLE:
-        if(strlen(title)>0){
-          if(bracketpos(title)>0){//neu trong chuoi co dau ngoac
-            strncpy(value, title, bracketpos(title)-1); //copy phan truoc dau ngoac
-          }else{
-            strcpy(value, title);    
+          if(strlen(title)>0){
+            if(bracketPos(title)>0){//neu trong chuoi co dau ngoac
+              strncpy(value, title, bracketPos(title)-1); //copy chuoi truoc dau ngoac
+            }else{
+              strcpy(value, title);
                 }     
-        }else{
-          strcpy(value, "");
-        }
-          
+          }
           break;
+
         case ARTIST:
-        if(strlen(artist)>0){
-           if(bracketpos(artist)>0){
-            strncpy(value, artist, bracketpos(artist)-1); 
-          }else{
-            strcpy(value, artist);    
+          if(strlen(artist)>0){
+            if(bracketPos(artist)>0){
+              strncpy(value, artist, bracketPos(artist)-1);
+            }else{
+              strcpy(value, artist);    
               }     
-        }else{//neu khong co Artist tag thi in ra samplerate va bitdepth
-          strcpy(value, samplerate);
-          strcat(value,"-");
-          strcat(value, bitdepth);
-        }
-          
+          }else{
+            strcpy(value, "No Artist"); 
+          }
           break;
-    }
-               }       
+
+        case INFO:
+          strcpy(value, seekConvert(seek));
+          strcat(value, " ");
+          strcat(value, trackType);
+          strcat(value, " ");
+          strcat(value, samplerate);
+          break;
+        }
+      }       
     return strlen(value);
  }
  
@@ -220,6 +243,37 @@ void lcdDisplay(char * lcdbuf, int rows) {//xuat thong tin ra LCD
   lcd.print(line);
 }
 
+void lcdRow1Display(char * line1, int rows) {//xuat thong tin ra LCD
+  char line[17];
+  memset(line, 0, sizeof(line));//Set toan bo gia tri mang line[17] ve 0
+  strncpy(line, line1, 16);//copy 16 ky tu cua lcdbuf vao mang line
+  //Serial.println("line1=[" + String(line) + "]");
+  fillBuffer(line, 16);
+  lcd.setCursor(0, 0);
+  lcd.print(line);//In ra row 1 LCD
+  if (rows == 2) return;//Neu LCD 16x2 thi dung lai
+}
+  //if (strlen(lcdbuf) > 16) {//Neu lcdbuf>16 ky tu thi in ra tiep
+   // strncpy(line, &lcdbuf[16], 16);//copy 16 ky tu tiep theo cua lcdbuf
+  //} else {
+    //strcpy(line," ");
+  //}
+  //fillBuffer(line, 16);
+  //Serial.println("line2=[" + String(line) + "]");
+void lcdRow2Display(char * line2, int rows) {//xuat thong tin ra LCD
+  char line[17];
+  memset(line, 0, sizeof(line));//Set toan bo gia tri mang line[17] ve 0
+  strcpy(line, line2);
+  fillBuffer(line, 16);
+  lcd.setCursor(0, 1);
+  lcd.print(line);//in ra row 2 LCD
+
+  if (rows == 2) return;//Neu LCD 16x2 thi dung lai
+}
+  
+
+
+
 //===================================================
 
 void setup() {
@@ -243,7 +297,7 @@ void setup() {
   //Serial.println("WiFi connected");
   //Serial.print("IP address: ");
   //Serial.println(WiFi.localIP());
-  lcd.begin(lcdCols, lcdRows);//khoi tao lcd
+  lcd.begin(lcdCols, lcdRows);//khoi tao LCD
   lcd.backlight();
   lcd.setCursor(0,0);
   lcd.print(F("Volumio Display"));
@@ -253,14 +307,16 @@ void setup() {
   lcd.noBacklight();
   lcd.clear();
   pinMode(btnNext,INPUT_PULLUP);
-  pinMode(btnPlay,INPUT_PULLUP);
-  
+  pinMode(btnPlay,INPUT_PULLUP);  
 }
+
 //=======================================================
+
+int cnt;
 void loop() {
   // put your main code here, to run repeatedly:
   static int counter = 0;
-  char state[40];//Trang thai Volumio (play, pause, stop)
+  char state[10];//Trang thai Volumio (play, pause, stop)
   char lcdbuf[80] = {0};//noi dung se xuat ra LCD
   static char oldbuf[80] = {0};
   String payload="";
@@ -285,51 +341,56 @@ if(checkButton()==NEXT){
        
   long now = millis();
   if (now < lastMillis) lastMillis = now; // millis is overflow
-  if (now - lastMillis > 1000) {
+  if (now - lastMillis > CHECK_INTERVAL) {//vong lap 1000ms
     lastMillis = now;
     counter++;
    
     HTTPClient http;
     http.begin(client,F("http://192.168.2.8/api/v1/getState"));
     int httpCode=http.GET();
-    if(httpCode>0){//neu ket noi duoc voi volumio
+    if(httpCode>0){//neu ket noi duoc voi Volumio
         retries=0;
-	      payload=http.getString();//kiem tra trang thai phat nhac
+	      payload=http.getString();//Nhan ve chuoi JSON
         item_to_get=PLAY_STATUS;
         //Serial.println("JSON: "+payload);
-        //int temp=getItem(payload, "status", state, sizeof(state));
-        int temp=getItemJson(payload, item_to_get, state);
+        //int stateLen=getItem(payload, "status", state, sizeof(state));
+        int stateLen=getItemJson(payload, item_to_get, state);
         //Serial.println("state=" + String(state));
-        } else{//khong ket noi duoc thi xoa man hinh va reset esp8266
+        } else{//khong ket noi duoc thi xoa LCD va reset ESP8266
           lcd.clear();
           lcd.noBacklight();
           delay(10*1000);
-	retries+=1;
-	if(retries>20){
-          ESP.restart();
-		          } 
-        }    
+	        retries+=1;
+	        if(retries>20){
+              ESP.restart();
+		            } 
+            }    
        
-    if (counter > interval) {
-        if(strcmp(state,"play") == 0) {
+    if (counter > interval) {//bat dau chu ky in noi dung ra LCD
+        if(strcmp(state,"play") == 0) {//Neu Volumio dang play thi xu ly thong tin va in ra LCD
           char artist[40];
+          char info[40];
           char title[40];
-        //char artisttrim[40];
-        //char titletrim[40];
           int artistLen;
           int titleLen;
+          int infoLen;
+          
+          item_to_get=TITLE;
+        //titleLen = getItem(payload, "title", title, sizeof(title));
+          memset(title, 0, sizeof(title));
+          titleLen = getItemJson(payload, item_to_get, title);
+
           item_to_get=ARTIST;
         //artistLen = getItem(payload, "artist", artist, sizeof(artist));
-          memset(artist,0,sizeof(artist));
+          memset(artist, 0, sizeof(artist));
           artistLen = getItemJson(payload, item_to_get, artist);
         //Serial.println("Artist=" + String(artist));
           if((sizeof(artist)/sizeof(artist[0]))<1){
-              strcpy(artist,"-----------");
+              strcpy(artist,"*");
             }
-          item_to_get=TITLE;
-        //titleLen = getItem(payload, "title", title, sizeof(title));
-          memset(title,0,sizeof(title));
-          titleLen = getItemJson(payload, item_to_get, title);
+          item_to_get=INFO;
+          memset(info, 0, sizeof(info));
+          infoLen = getItemJson(payload, item_to_get, info);
         //Serial.println("Title=" + String(title));
        /* int t=0;
         int a=0;
@@ -360,34 +421,63 @@ if(checkButton()==NEXT){
           strncpy(artisttrim,artist,a);
         } */
         memset(lcdbuf, 0, sizeof(lcdbuf));
-        if (artistLen > 0 && titleLen > 0) {
+        if (titleLen > 0) {
           strcpy(lcdbuf, title);
+          if(artistLen > 0){
           strcat(lcdbuf, "#");
-          strcat(lcdbuf, artist);
-        } else if (artistLen == 0 && titleLen > 0) {
-          strcpy(lcdbuf, title);
-          strcat(lcdbuf,"");
-        }else{
-          strcpy(lcdbuf, "No ID3 Tag");
+          strcat(lcdbuf, artist);//tao mang lcdbuf chua Title va Artist
+          }      
         }
-
-        //Serial.println("lcdbuf=[" + String(lcdbuf) + "]");
+        
+        char part1[17];
+        char part2[17];
+        char part3[17];
+        strncpy(part1, lcdbuf, 16);
+        strncpy(part2, &lcdbuf[16], 16);
+        strncpy(part3, &lcdbuf[32], 16);
+        cnt=cnt+1;
+        if (cnt>3){
+          cnt=0;
+        }
+        //Serial.println("cnt=[" + String(cnt) + "]");
         if (strlen(lcdbuf) > 0) {
-          if (strcmp(lcdbuf, oldbuf) != 0) {//cap nhat lai man hinh khi lcdbuf thay doi
+          if (strcmp(lcdbuf, oldbuf) != 0) {//neu lcdbuf co thay doi thi cap nhat LCD
+            lcd.clear();
             lcd.backlight();
-            lcdDisplay(lcdbuf, lcdRows);
+            //lcdDisplay(lcdbuf, lcdRows);
+            lcdRow1Display(lcdbuf, lcdRows);
+            lcdRow2Display(info, lcdRows);
             strcpy(oldbuf, lcdbuf);
+          }else{
+            lcd.clear();
+            lcdRow2Display(info, lcdRows);
+            if(cnt==1) {
+              
+              lcdRow1Display(part1, lcdRows);
+              
+            }else if (cnt==2){
+              
+              lcdRow1Display(part2, lcdRows);
+              
+            }else if (cnt==3){
+              lcdRow1Display(part3, lcdRows);
+              
+            }
+            
           }
         }
         interval = 1;
 
- }else{//khi state=pause/stop
+ }else{//state=pause/stop
         lcd.clear();
         lcd.noBacklight();
         memset(oldbuf, 0, sizeof(oldbuf));
         interval = 1;
       }
-    counter=0;  
-      }       
-    }
+    counter=0;//ket thuc chu ky hien thi
+        
+      }
+   
+    }//ket thuc vong lap 1000ms
+    interval=0;
   }
