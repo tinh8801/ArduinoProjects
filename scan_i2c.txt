@@ -1,4 +1,3 @@
-ckily there’s an easy way to do this. Below is a simple I2C scanner sketch that scans your I2C bus and returns the address of each I2C device it finds.
 
 #include <Wire.h>
 
