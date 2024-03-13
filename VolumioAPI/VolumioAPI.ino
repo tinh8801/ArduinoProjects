@@ -21,10 +21,11 @@ LiquidCrystal_74HC595 lcd(DS, SHCP, STCP, RS, E, D4, D5, D6, D7, BACKLIGHT);//Kh
 enum BUTTONS {NONE, NEXT, PLAY};//Trang thai nut nhan
 #define lcdCols 16// So cot LCD
 #define lcdRows 2//So hang LCD
-#define CHECK_INTERVAL 1000
+#define CYCLE_INTERVAL 1000
+#define NUM_OF_PAGES 3
 
-const char *ssid     = "DDWRT";
-const char *password = "12347890";
+const char* ssid     = "DDWRT";
+const char* password = "12347890";
 WiFiClient client;
 
 long lastMillis = 0;
@@ -70,10 +71,10 @@ BUTTONS checkButton(){//Kiem tra trang thai nut nhan
 int bracketPos(const char* src){//tim vi tri dau mo ngoac (
   int pos=0;
   for(int i=0; i<strlen(src)-1; i++){
-            if(src[i]=='('){
-              pos=i;
-              break;
-            }
+      if(src[i]=='('){
+        pos=i;
+        break;
+          }
         }
   return pos;
 }
@@ -87,18 +88,16 @@ JSON tu Volumio:
 "repeatSingle":false,"consume":false,"volume":50,"disableVolumeControl":false,"mute":false,"stream":"ape",
 "updatedb":false,"volatile":false,"service":"mpd"}
 */
-char * seekConvert(long seek){
+char* seekConvert(long seekval){//chuyen seek (ms) sang phut giay
   static char kq[5];
-  int seconds=seek/1000;
+  int seconds=seekval/1000;
   int minutes=seconds/60;
   seconds=seconds%60;
-  sprintf(kq,"%02d:%02d",minutes,seconds);
+  sprintf(kq, "%02d:%02d", minutes, seconds);// mm:ss
   return kq;
 }
 
-
- int getItemJson(String line, ITEMS item, char* value){
-    
+int getItemJson(String line, ITEMS item, char* value){
     DeserializationError error = deserializeJson(doc, line);
     if (error) {
     //Serial.print(F("deserializeJson() failed: "));
@@ -106,12 +105,12 @@ char * seekConvert(long seek){
     //strcpy(value, "Invalid JSON");
     }else{
       memset(value, 0, sizeof(value));  
-      const char* status=doc["status"];
-      const char* title=doc["title"];
-      const char* artist=doc["artist"];
-      const char* trackType = doc["trackType"]; // "ape"
-      long seek = doc["seek"]; // 87239
-      //int duration = doc["duration"]; // 543
+      const char* status=doc["status"];//"play"
+      const char* title=doc["title"];//"My Love"
+      const char* artist=doc["artist"];//"Westlife"
+      const char* trackType = doc["trackType"]; // "flac"
+      long seek = doc["seek"]; // 87239 (in ms)
+      //int duration = doc["duration"]; // 543 (in second)
       const char* samplerate = doc["samplerate"]; // "44.1 KHz"
        
       switch (item){
@@ -126,7 +125,7 @@ char * seekConvert(long seek){
             }else{
               strcpy(value, title);
                 }     
-          }
+            }
           break;
 
         case ARTIST:
@@ -194,7 +193,7 @@ void string2char(String line, char * cstr4, int len) {
 }
 */
 
-void fillBuffer(char * line, int len){//Neu line<16 ky tu thi bo sung bang ky tu 0x20 (Space)
+void fillBuffer(char* line, int len){//Neu line<16 ky tu thi bo sung bang ky tu 0x20 (Space)
   int sz = strlen(line);
   for (int i=sz;i<len;i++) {
     line[i] = 0x20;
@@ -202,7 +201,7 @@ void fillBuffer(char * line, int len){//Neu line<16 ky tu thi bo sung bang ky tu
   }
 }
 
-void lcdDisplay(char * lcdbuf, int rows) {//xuat thong tin ra LCD
+void lcdDisplay(char* lcdbuf, int rows) {//xuat thong tin ra LCD
   char line[17];
   memset(line, 0, sizeof(line));//Set toan bo gia tri mang line thanh 0
   strncpy(line, lcdbuf, 16);
@@ -243,7 +242,7 @@ void lcdDisplay(char * lcdbuf, int rows) {//xuat thong tin ra LCD
   lcd.print(line);
 }
 
-void lcdRow1Display(char * line1, int rows) {//xuat thong tin ra LCD
+void lcdRow1Display(char* line1, int rows) {//xuat thong tin ra row1 LCD
   char line[17];
   memset(line, 0, sizeof(line));//Set toan bo gia tri mang line[17] ve 0
   strncpy(line, line1, 16);//copy 16 ky tu cua lcdbuf vao mang line
@@ -260,18 +259,16 @@ void lcdRow1Display(char * line1, int rows) {//xuat thong tin ra LCD
   //}
   //fillBuffer(line, 16);
   //Serial.println("line2=[" + String(line) + "]");
-void lcdRow2Display(char * line2, int rows) {//xuat thong tin ra LCD
+void lcdRow2Display(char* line2, int rows) {//xuat thong tin ra row2 LCD
   char line[17];
   memset(line, 0, sizeof(line));//Set toan bo gia tri mang line[17] ve 0
   strcpy(line, line2);
   fillBuffer(line, 16);
   lcd.setCursor(0, 1);
-  lcd.print(line);//in ra row 2 LCD
+  lcd.print(line);//In ra row 2 LCD
 
   if (rows == 2) return;//Neu LCD 16x2 thi dung lai
 }
-  
-
 
 
 //===================================================
@@ -312,7 +309,7 @@ void setup() {
 
 //=======================================================
 
-int cnt;
+int lcd_page;//
 void loop() {
   // put your main code here, to run repeatedly:
   static int counter = 0;
@@ -341,7 +338,7 @@ if(checkButton()==NEXT){
        
   long now = millis();
   if (now < lastMillis) lastMillis = now; // millis is overflow
-  if (now - lastMillis > CHECK_INTERVAL) {//vong lap 1000ms
+  if (now - lastMillis > CYCLE_INTERVAL) {//vong lap 1000ms
     lastMillis = now;
     counter++;
    
@@ -424,22 +421,24 @@ if(checkButton()==NEXT){
         if (titleLen > 0) {
           strcpy(lcdbuf, title);
           if(artistLen > 0){
-          strcat(lcdbuf, "#");
+          strcat(lcdbuf, "::");
           strcat(lcdbuf, artist);//tao mang lcdbuf chua Title va Artist
           }      
         }
         
-        char part1[17];
-        char part2[17];
-        char part3[17];
-        strncpy(part1, lcdbuf, 16);
-        strncpy(part2, &lcdbuf[16], 16);
-        strncpy(part3, &lcdbuf[32], 16);
-        cnt=cnt+1;
-        if (cnt>3){
-          cnt=0;
+        char lcdbuf_part1[17];
+        char lcdbuf_part2[17];
+        char lcdbuf_part3[17];
+        
+        strncpy(lcdbuf_part1, lcdbuf, 16);
+        strncpy(lcdbuf_part2, &lcdbuf[16], 16);
+        strncpy(lcdbuf_part3, &lcdbuf[32], 16);
+    
+        lcd_page+=1;
+        if (lcd_page>NUM_OF_PAGES){
+          lcd_page=0;
         }
-        //Serial.println("cnt=[" + String(cnt) + "]");
+        //Serial.println("split_parts=[" + String(split_parts) + "]");
         if (strlen(lcdbuf) > 0) {
           if (strcmp(lcdbuf, oldbuf) != 0) {//neu lcdbuf co thay doi thi cap nhat LCD
             lcd.clear();
@@ -451,33 +450,25 @@ if(checkButton()==NEXT){
           }else{
             lcd.clear();
             lcdRow2Display(info, lcdRows);
-            if(cnt==1) {
-              
-              lcdRow1Display(part1, lcdRows);
-              
-            }else if (cnt==2){
-              
-              lcdRow1Display(part2, lcdRows);
-              
-            }else if (cnt==3){
-              lcdRow1Display(part3, lcdRows);
-              
-            }
-            
+            if(lcd_page==1) {
+              lcdRow1Display(lcdbuf_part1, lcdRows);
+            }else if (lcd_page==2){ 
+              lcdRow1Display(lcdbuf_part2, lcdRows);   
+            }else if (lcd_page==3){
+              lcdRow1Display(lcdbuf_part3, lcdRows);    
+            }    
           }
         }
         interval = 1;
 
  }else{//state=pause/stop
-        lcd.clear();
-        lcd.noBacklight();
-        memset(oldbuf, 0, sizeof(oldbuf));
-        interval = 1;
+    lcd.clear();
+    lcd.noBacklight();
+    memset(oldbuf, 0, sizeof(oldbuf));
+    interval = 1;
       }
-    counter=0;//ket thuc chu ky hien thi
-        
+  counter=0;//ket thuc chu ky hien thi     
       }
-   
     }//ket thuc vong lap 1000ms
-    interval=0;
+interval=0;
   }
