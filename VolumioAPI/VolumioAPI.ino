@@ -1,3 +1,5 @@
+/*Display Volumio Playing Status and Remote Control with ESP8266 and LCD 16x02*/
+
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
 #include <LiquidCrystal_74HC595.h>
