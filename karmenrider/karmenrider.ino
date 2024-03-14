@@ -1,3 +1,7 @@
+/*
+https://make-muda.net/2019/07/6804/
+*/
+
 /*-------------------------- 基本定義 --------------------------*/
 #define SW_CENTER_PIN 6
 #define SW_DRIVER_PIN 8
