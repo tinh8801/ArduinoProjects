@@ -1,4 +1,4 @@
-# ArduinoProjects
-Lưu trữ code Arduino
+# Arduino Projects
+Lưu trữ và chia sẻ code Arduino
 
 Updating...
