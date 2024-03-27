@@ -6,7 +6,10 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <Fonts/roboto.h>//Su dung font tu tao bang fontconvert
+#include "volumio_logo.h"//Hinh anh splash screen
 
+//========================================================
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
 
@@ -18,15 +21,18 @@
 #define OLED_RESET     -1 // Reset pin # (or -1 if sharing Arduino reset pin)
 #define SCREEN_ADDRESS 0x3C
 Adafruit_SSD1306 lcd(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+//===============================================================
 
 #define btnNext 4//D2 (GPIO4)
 #define btnPlay 5//D1 (GPIO5)
 
 enum BUTTONS {NONE, NEXT, PLAY};//Trang thai nut nhan
-#define lcdCols 16// So cot LCD
-#define lcdRows 2//So hang LCD
+//#define lcdCols 16// So cot LCD
+//#define lcdRows 2//So hang LCD
 #define CYCLE_INTERVAL 1000
-#define NUM_OF_PAGES 3
+#define NUM_OF_PAGES 2
+#define DISPLAY_EDGE 108
+#define SCROLL_SPEED 6
 
 const char* ssid     = "DDWRT";
 const char* password = "12347890";
@@ -34,7 +40,7 @@ WiFiClient client;
 
 long lastMillis = 0;
 int interval = 0;
-int retries=0;
+int retries = 0;
 StaticJsonDocument<1024> doc;
 
 enum ITEMS {PLAY_STATUS, TITLE, ARTIST, INFO, OTHER};
@@ -83,6 +89,33 @@ int bracketPos(const char* src){//tim vi tri dau mo ngoac (
   return pos;
 }
 
+char* seekConvert(long seekval){//doi seek (ms) sang phut, giay
+  static char kq[5];
+  int seconds=seekval/1000;
+  int minutes=seconds/60;
+  seconds=seconds%60;
+  sprintf(kq, "%02d:%02d", minutes, seconds);// mm:ss
+  return kq;
+}
+
+char* durationConvert(int durval){//doi duration (s) sang phut, giay
+  static char kq[5];
+  int minutes=durval/60;
+  int seconds=durval%60;
+  sprintf(kq, "%02d:%02d", minutes, seconds);// mm:ss
+  return kq;
+}
+
+char* tracktypeUpper(const char* tracktype){//doi tracktype thanh chu IN HOA
+  static char kq[5];
+  for(int i=0; i<=strlen(tracktype); i++){
+    kq[i] = toupper(tracktype[i]);
+  }
+  return kq;
+}
+
+int getItemJson(String line, ITEMS item, char* value){
+
 /*
 JSON tu Volumio:
 {"status":"play","position":5,"title":"Matsuri","artist":"Kitaro","album":"",
@@ -92,24 +125,7 @@ JSON tu Volumio:
 "repeatSingle":false,"consume":false,"volume":50,"disableVolumeControl":false,"mute":false,"stream":"ape",
 "updatedb":false,"volatile":false,"service":"mpd"}
 */
-char* seekConvert(long seekval){//chuyen seek (ms) sang phut giay
-  static char kq[5];
-  int seconds=seekval/1000;
-  int minutes=seconds/60;
-  seconds=seconds%60;
-  sprintf(kq, "%02d:%02d", minutes, seconds);// mm:ss
-  return kq;
-}
 
-char* durationConvert(int durval){//chuyen duration (s) sang phut giay
-  static char kq[5];
-  int minutes=durval/60;
-  int seconds=durval%60;
-  sprintf(kq, "%02d:%02d", minutes, seconds);// mm:ss
-  return kq;
-}
-
-int getItemJson(String line, ITEMS item, char* value){
     DeserializationError error = deserializeJson(doc, line);
     if (error) {
     //Serial.print(F("deserializeJson() failed: "));
@@ -157,7 +173,7 @@ int getItemJson(String line, ITEMS item, char* value){
           strcat(value, "/");
           strcat(value, durationConvert(duration));
           strcat(value, " ");
-          strcat(value, trackType);
+          strcat(value, tracktypeUpper(trackType));
           strcat(value, " ");
           strcat(value, samplerate);
           break;
@@ -166,46 +182,6 @@ int getItemJson(String line, ITEMS item, char* value){
     return strlen(value);
  }
  
-/*int getItem(String line, String item, char * value, int len) {//phan tich chuoi tra ve tu getState
-  int pos1,pos2,pos3;
-  //Serial.println("item=[" + String(item) + "]");
-  pos1=line.indexOf(item);//vi tri cua chuoi status, title, artist
-  //Serial.println("pos1=" + String(pos1));
-  String line2;
-  line2 = line.substring(pos1);
-  //Serial.println("line2=[" + line2 + "]");
-  pos2=line2.indexOf(":");//tim vi tri dau :
-  pos3=line2.indexOf("\",");//tim vi tri ket thuc chuoi
- 
-  //Serial.println("pos2=" + String(pos2));
-  //Serial.println("pos3=" + String(pos3));
-  String line3;
-  String temp;
-  temp = line2.substring(pos2+2,pos3);//cat chuoi sau dau :
-  if(temp.indexOf("(")>0){
-  line3=temp.substring(0,temp.indexOf("(")-1);//cat bo phan nam trong dau ()
-  }else{
-    line3=temp;
-  }
-  string2char(line3, value, len);
-  //Serial.println("value=[" + String(value) + "]");
-  return(strlen(value));
-}
-void string2char(String line, char * cstr4, int len) {
-  char cstr3[40];
-  line.toCharArray(cstr3, line.length()+1);
-  //Serial.println("cstr3=[" + String(cstr3) + "]");
-  int pos4 = 0;
-  for (int i=0;i<strlen(cstr3);i++) {
-    //if (cstr3[i] == ' ') continue;
-    if (cstr3[i] == ' ' && pos4 == 0) continue;
-    cstr4[pos4++] = cstr3[i];
-    cstr4[pos4] = 0;
-    if (pos4 == (len-1)) break;
-  }
-  //Serial.println("cstr4=[" + String(cstr4) + "]");
-}
-*/
 
 void fillBuffer(char* line, int len){//Neu line<16 ky tu thi bo sung bang ky tu 0x20 (Space)
   int sz = strlen(line);
@@ -223,6 +199,7 @@ void lcdDisplay(char* lcdbuf, int rows) {//xuat thong tin ra LCD
   //Serial.println("line1=[" + String(line) + "]");
   lcd.setTextSize(1);             // Normal 1:1 pixel scale
   lcd.setTextColor(SSD1306_WHITE);        // Draw white text
+  lcd.cp437(true);
   lcd.setCursor(0, 0);
   lcd.println(line);//In 16 ky tu dau cua lcdbuf ra dong 1 LCD
 
@@ -258,40 +235,40 @@ void lcdDisplay(char* lcdbuf, int rows) {//xuat thong tin ra LCD
   lcd.println(line);
 }
 
-void lcdRow1Display(char* line1, int rows) {//xuat thong tin ra row1 LCD
-  char line[20];
-  memset(line, 0, sizeof(line));//Set toan bo gia tri mang line[17] ve 0
-  strncpy(line, line1, 19);//copy 16 ky tu cua lcdbuf vao mang line
+void lcdRowDisplay(char* content, int rows=0) {//xuat thong tin ra LCD
+  char line[40];
+  memset(line, 0, sizeof(line));//Set toan bo gia tri mang line[40] ve 0
+  strncpy(line, content, 39);
   //Serial.println("line1=[" + String(line) + "]");
-  fillBuffer(line, 19);
+  fillBuffer(line, 39);
   lcd.setTextSize(1);             // Normal 1:1 pixel scale
   lcd.setTextColor(SSD1306_WHITE);        // Draw white text
-  lcd.setCursor(0, 0);
-  lcd.println(line);//In ra row 1 LCD
+  lcd.setCursor(0, rows);
+  lcd.println(line);
   lcd.display();
-  if (rows == 2) return;//Neu LCD 16x2 thi dung lai
+  
+  //if (rows == 2) return;//Neu LCD 16x2 thi dung lai
 }
   
-void lcdRow2Display(char* line2, int rows) {//xuat thong tin ra row2 LCD
-  char line[20];
-  memset(line, 0, sizeof(line));//Set toan bo gia tri mang line[17] ve 0
-  strcpy(line, line2);
-  fillBuffer(line, 19);
+void lcdRowDisplay2(char* content, int cols=0, int rows=0) {//xuat thong tin ra LCD
+  char line[40];
+  memset(line, 0, sizeof(line));//Set toan bo gia tri mang line[40] ve 0
+  strcpy(line, content);
+  fillBuffer(line, 39);
   lcd.setTextSize(1);             // Normal 1:1 pixel scale
   lcd.setTextColor(SSD1306_WHITE);        // Draw white text
-  lcd.setCursor(0, 30);
-  lcd.println(line);//In ra row 2 LCD
+  lcd.setCursor(cols, rows);
+  lcd.println(line);
   lcd.display();
-  if (rows == 2) return;//Neu LCD 16x2 thi dung lai
+  //if (rows == 2) return;//Neu LCD 16x2 thi dung lai
 }
 
 
 //===================================================
 
 void setup() {
-  // put your setup code here, to run once:
-  Serial.begin(115200);
-    // We start by connecting to a WiFi network
+  //Serial.begin(115200);
+  // We start by connecting to a WiFi network
   //Serial.println();
   //Serial.println();
   //Serial.print("Wait for WiFi...");
@@ -311,16 +288,23 @@ void setup() {
   //Serial.println(WiFi.localIP());
    // SSD1306_SWITCHCAPVCC = generate display voltage from 3.3V internally
   if(!lcd.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
-    Serial.println(F("SSD1306 allocation failed"));
+    //Serial.println(F("SSD1306 allocation failed"));
     for(;;); // Don't proceed, loop forever
   }
   lcd.clearDisplay();
+  lcd.drawBitmap(0, 0, volumio_logo, SCREEN_WIDTH, SCREEN_HEIGHT, SSD1306_WHITE);//hien thi logo Volumio
+  lcd.display();
+  delay(2000);
+  lcd.clearDisplay();
+  lcd.setFont(&Roboto_Regular6pt7b);
   lcd.setTextSize(1);             // Normal 1:1 pixel scale
   lcd.setTextColor(SSD1306_WHITE);        // Draw white text
-  lcd.setCursor(0, 0);             // Start at top-left corner
-  lcd.println(F("Volumio Remote"));
-  lcd.setCursor(0, 20);
+  lcd.setCursor(0, 8);             // Start at top-left corner
   lcd.println(F("WiFi Connected"));
+  lcd.setCursor(0, 24);
+  lcd.println(F("IP Address: "));
+  lcd.setCursor(0, 40);
+  lcd.println(WiFi.localIP());
   lcd.display();
   delay(1000);
   pinMode(btnNext,INPUT_PULLUP);
@@ -329,7 +313,8 @@ void setup() {
 
 //=======================================================
 
-int lcd_page;//
+int lcd_page;
+int cnt;
 void loop() {
   static int counter = 0;
   char state[10];//Trang thai Volumio (play, pause, stop)
@@ -374,6 +359,7 @@ if(checkButton()==NEXT){
         //Serial.println("state=" + String(state));
         } else{//khong ket noi duoc thi xoa LCD va reset ESP8266
           lcd.clearDisplay();
+          lcd.display();
           delay(10*1000);
 	        retries+=1;
 	        if(retries>20){
@@ -400,14 +386,13 @@ if(checkButton()==NEXT){
           memset(artist, 0, sizeof(artist));
           artistLen = getItemJson(payload, item_to_get, artist);
         //Serial.println("Artist=" + String(artist));
-          if((sizeof(artist)/sizeof(artist[0]))<1){
-              strcpy(artist,"*");
-            }
+          //if((sizeof(artist)/sizeof(artist[0]))<1){
+              //strcpy(artist,"*");
+           // }
           item_to_get=INFO;
           memset(info, 0, sizeof(info));
           infoLen = getItemJson(payload, item_to_get, info);
         //Serial.println("Title=" + String(title));
-
 
         memset(lcdbuf, 0, sizeof(lcdbuf));
         if (titleLen > 0) {
@@ -417,16 +402,29 @@ if(checkButton()==NEXT){
           strcat(lcdbuf, artist);//tao mang lcdbuf chua Title va Artist
           }      
         }
+     
+        char lcdbuf_title[40];
+        char lcdbuf_artist[40];
+        char splitter[4];
+        strcpy(splitter, ">>>");
+        //char lcdbuf_part3[20];
+        memset(lcdbuf_title, 0, sizeof(lcdbuf_title));
+        if (titleLen > 0) {
+          strcpy(lcdbuf_title, title);
+        }
+        if(artistLen > 0){
+          strcpy(lcdbuf_artist, artist);
+          }
         
-        char lcdbuf_part1[20];
-        char lcdbuf_part2[20];
-        char lcdbuf_part3[20];
-        
-        strncpy(lcdbuf_part1, lcdbuf, 19);
-        strncpy(lcdbuf_part2, &lcdbuf[19], 19);
-        strncpy(lcdbuf_part3, &lcdbuf[38], 19);
+        //strncpy(lcdbuf_part1, lcdbuf, 19);
+        //strncpy(lcdbuf_part2, &lcdbuf[19], 19);
+        //strncpy(lcdbuf_part3, &lcdbuf[38], 19);
     
         lcd_page+=1;
+        cnt+=SCROLL_SPEED;
+        if (cnt>DISPLAY_EDGE){
+          cnt=0;
+        }
         if (lcd_page>NUM_OF_PAGES){
           lcd_page=0;
         }
@@ -435,19 +433,25 @@ if(checkButton()==NEXT){
           if (strcmp(lcdbuf, oldbuf) != 0) {//neu lcdbuf co thay doi thi cap nhat LCD
             lcd.clearDisplay();
             //lcdDisplay(lcdbuf, lcdRows);
-            lcdRow1Display(lcdbuf, lcdRows);
-            lcdRow2Display(info, lcdRows);
+            lcdRowDisplay(lcdbuf, 8);
+            lcdRowDisplay2(splitter, 0, 36);
+            lcdRowDisplay(info, 48);
             strcpy(oldbuf, lcdbuf);
+            cnt=0;
           }else{
-            lcd.clearDisplay();
-            lcdRow2Display(info, lcdRows);
+            //lcdRow1Display(lcdbuf, lcdRows);
+            lcdRowDisplay(info, 48);
+            lcdRowDisplay2(splitter, cnt, 36);
             if(lcd_page==1) {
-              lcdRow1Display(lcdbuf_part1, lcdRows);
+             lcdRowDisplay(lcdbuf_title, 8);
             }else if (lcd_page==2){ 
-              lcdRow1Display(lcdbuf_part2, lcdRows);   
-            }else if (lcd_page==3){
-              lcdRow1Display(lcdbuf_part3, lcdRows);    
-            }    
+              lcdRowDisplay(lcdbuf_artist, 8);
+            }
+            //}else if (lcd_page==3){
+             // lcdRow1Display(lcdbuf_part3, lcdRows);    
+            //}
+            
+             
           }
         }
         interval = 1;
@@ -458,7 +462,8 @@ if(checkButton()==NEXT){
     memset(oldbuf, 0, sizeof(oldbuf));
     interval = 1;
       }
-  counter=0;//ket thuc chu ky hien thi     
+  counter=0;//ket thuc chu ky hien thi
+  lcd.clearDisplay();    
       }
     }//ket thuc vong lap 1000ms
 interval=0;
